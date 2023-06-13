@@ -36,9 +36,6 @@ The Security mode is designed to enhance safety and security within the apartmen
 The smart lighting system is accessible through a user-friendly web interface. This interface allows users to monitor relevant room conditions, such as occupancy and light intensity. Furthermore, users can customize threshold values for specific measurements, empowering them to tailor the system's behavior according to their preferences. The system mode, whether Auto or Security, can also be conveniently set via the web interface.
 
 With the Smart Lighting System, energy wastage due to unnecessary lighting can be significantly reduced. Simultaneously, the system offers enhanced security features and a convenient user experience, making it an ideal choice for modern apartments.
-The smart lighting system is accessible through a user-friendly web interface. This interface allows users to monitor relevant room conditions, such as occupancy and light intensity. Furthermore, users can customize threshold values for specific measurements, empowering them to tailor the system's behavior according to their preferences. The system mode, whether Auto or Security, can also be conveniently set via the web interface.
-
-With the Smart Lighting System, energy wastage due to unnecessary lighting can be significantly reduced. Simultaneously, the system offers enhanced security features and a convenient user experience, making it an ideal choice for modern apartments.
 
 .....
 

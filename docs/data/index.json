@@ -18,8 +18,8 @@
   ],
   "supervisors": [
     {
-      "name": "",
-      "email": ""
+       "name": "Dr. Eng. Kamalanath Samarakoon",
+       "email": "kamalanath@eng.pdn.ac.lk"
     }
   ],
   "tags": ["Automation", "Embedded Systems", "MQTT", "SCADA", "PlatformIO"]

@@ -32,6 +32,11 @@ In the Auto mode, the system detects the occupancy of a room. If no occupants ar
 #### Security Mode
 The Security mode is designed to enhance safety and security within the apartment. When the system is in Security mode, the lights remain switched off. However, if motion is detected in a room, the lights are instantly activated and change color to red, alerting occupants and potentially deterring intruders.
 
+
+The smart lighting system is accessible through a user-friendly web interface. This interface allows users to monitor relevant room conditions, such as occupancy and light intensity. Furthermore, users can customize threshold values for specific measurements, empowering them to tailor the system's behavior according to their preferences. The system mode, whether Auto or Security, can also be conveniently set via the web interface.
+
+With the Smart Lighting System, energy wastage due to unnecessary lighting can be significantly reduced. Simultaneously, the system offers enhanced security features and a convenient user experience, making it an ideal choice for modern apartments.
+
 .....
 
 ## Links
@@ -40,8 +45,3 @@ The Security mode is designed to enhance safety and security within the apartmen
 - [Project Page](https://cepdnaclk.github.io/{{ page.repository-name}}){:target="_blank"}
 - [Department of Computer Engineering](http://www.ce.pdn.ac.lk/)
 - [University of Peradeniya](https://eng.pdn.ac.lk/)
-
-
-[//]: # (Please refer this to learn more about Markdown syntax)
-[//]: # (https://github.com/adam-p/markdown-here/wiki/Markdown-Cheatsheet)
-

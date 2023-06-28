@@ -28,6 +28,14 @@ boolean takeLowTime;
 String dateString = "";
 String timeString = "";
 
+// Variables to store values that need to send to MQTT
+String UoP_CO_326_E18_Gr18_PIR_timeStamp = "";
+boolean UoP_CO_326_E18_Gr18_PIR_data = false;           // true: movement detected, false: no movement
+
+String UoP_CO_326_E18_Gr18_BH1750_timeStamp = "";
+float UoP_CO_326_E18_Gr18_BH1750_data;
+
+
 // the time when the sensor outputs a low impulse
 long unsigned int lowIn;
 // the amount of milliseconds the sensor has to be low
@@ -42,6 +50,7 @@ const int led1 = 33;
 void pirSensor();
 void lightIntensity();
 void connectWiFi();
+String getDateTime();
 
 void Task1code(void *pvParameters);
 void Task2code(void *pvParameters);
@@ -69,6 +78,8 @@ void setup()
   // BH1750 Sensor
   // Initialize the I2C bus (BH1750 library doesn't do this automatically)
   Wire.begin();
+  connectWiFi();
+
   lightMeter.begin();
   Serial.println(F("BH1750 Test begin"));
 
@@ -128,8 +139,8 @@ void connectWiFi()
     delay(300);
   }
 
-  Serial.print("Connected with IP: ");
-  Serial.println(WiFi.localIP());
+  // Serial.print("Connected with IP: ");
+  // Serial.println(WiFi.localIP());
 }
 
 // Function for get PIR sensor data to check the occupancy
@@ -142,11 +153,12 @@ void pirSensor()
       digitalWrite(ledPin, HIGH); // the LED visualizes the sensor's output pin state
       if (lockLow)
       {
+        UoP_CO_326_E18_Gr18_PIR_data = true;
+        UoP_CO_326_E18_Gr18_PIR_timeStamp = getDateTime();
         lockLow = false;
         Serial.println("---");
         Serial.print("Motion detected at ");
-        Serial.print(millis() / 1000);
-        Serial.println(" sec");
+        Serial.println(UoP_CO_326_E18_Gr18_PIR_timeStamp);
         delay(50);
       }
       takeLowTime = true;
@@ -164,9 +176,10 @@ void pirSensor()
       if (!lockLow && millis() - lowIn > motionPause)
       {
         lockLow = true;
+        UoP_CO_326_E18_Gr18_PIR_data = false;
+        UoP_CO_326_E18_Gr18_PIR_timeStamp = getDateTime();
         Serial.print("Motion ended at "); // output
-        Serial.print((millis() - motionPause) / 1000);
-        Serial.println(" sec");
+        Serial.println(UoP_CO_326_E18_Gr18_PIR_timeStamp);
         delay(50);
       }
     }
@@ -178,19 +191,21 @@ void lightIntensity()
   for (;;)
   {
     float lux = lightMeter.readLightLevel();
+    // Set new flux
+    UoP_CO_326_E18_Gr18_BH1750_data = lux;
+    // Set new timestamp
+    UoP_CO_326_E18_Gr18_BH1750_timeStamp = getDateTime();
+
     Serial.print("Light: ");
     Serial.print(lux);
-    Serial.println(" lx");
-    unsigned long currentMillis = millis(); // Get the current timestamp
-    Serial.print("Timestamp: ");
-    Serial.println(currentMillis);
-    delay(1000);
+    Serial.print(" lx ");
+    Serial.println(UoP_CO_326_E18_Gr18_BH1750_timeStamp);
+    delay(2000);
   }
 }
 
 String getDateTime()
 {
-  connectWiFi();
   timeClient.update();
   time_t epochTime = timeClient.getEpochTime();
   struct tm *ptm = gmtime((time_t *)&epochTime);

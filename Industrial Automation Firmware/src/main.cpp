@@ -1,6 +1,15 @@
 #include <Arduino.h>
+#include <WiFi.h>
+#include <FirebaseESP32.h>
+#include <NTPClient.h>
+#include <WiFiUdp.h>
 #include <Wire.h>
 #include <BH1750.h>
+
+#define WIFI_SSID "Redmi Note 7"
+#define WIFI_PASSWORD "Anush123ga"
+// #define WIFI_SSID "Eng-Student"
+// #define WIFI_PASSWORD "3nG5tuDt"
 
 // Create 2 tasks for each processor
 TaskHandle_t Task1;
@@ -9,23 +18,17 @@ TaskHandle_t Task2;
 // Initiate BH1750 sensor
 BH1750 lightMeter;
 
-int calibrationTime = 30;
-boolean lockLow = true;
-boolean takeLowTime;
-
-// the time when the sensor outputs a low impulse
-long unsigned int lowIn;
-// the amount of milliseconds the sensor has to be low
-// before we assume all motion has stopped
-long unsigned int motionPause = 5000;
+int calibrationTime = 15;
 
 int pirPin = 34; // the digital pin 34 connected to the PIR sensor's output
 int ledPin = 13;
 const int led1 = 33;
 
 // Function signatures
-void pirSensor();
-void lightIntensity();
+void connectWiFi();
+extern void pirSensor(int, int);
+extern void lightIntensity(BH1750);
+extern String getDateTime();
 
 void Task1code(void *pvParameters);
 void Task2code(void *pvParameters);
@@ -53,6 +56,8 @@ void setup()
   // BH1750 Sensor
   // Initialize the I2C bus (BH1750 library doesn't do this automatically)
   Wire.begin();
+  connectWiFi();
+
   lightMeter.begin();
   Serial.println(F("BH1750 Test begin"));
 
@@ -84,9 +89,9 @@ void Task1code(void *pvParameters)
 {
   Serial.print("Task1 running on core ");
   Serial.println(xPortGetCoreID());
-  
-  // Measuring light intensity from BH1750 
-  lightIntensity();
+
+  // Measuring light intensity from BH1750
+  lightIntensity(lightMeter);
 }
 
 // Task2code: PIR sensor
@@ -96,62 +101,22 @@ void Task2code(void *pvParameters)
   Serial.println(xPortGetCoreID());
 
   // Calling pir sensor to check occupancy
-  pirSensor();
+  pirSensor(pirPin, ledPin);
 }
 
 void loop()
 {
 }
 
-// Function for get PIR sensor data to check the occupancy
-void pirSensor()
+void connectWiFi()
 {
-  for (;;)
+
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  while (WiFi.status() != WL_CONNECTED)
   {
-    if (digitalRead(pirPin) == HIGH)
-    {
-      digitalWrite(ledPin, HIGH); // the LED visualizes the sensor's output pin state
-      if (lockLow)
-      {
-        lockLow = false;
-        Serial.println("---");
-        Serial.print("Motion detected at ");
-        Serial.print(millis() / 1000);
-        Serial.println(" sec");
-        delay(50);
-      }
-      takeLowTime = true;
-    }
-
-    if (digitalRead(pirPin) == LOW)
-    {
-      digitalWrite(ledPin, LOW); // the LED visualizes the sensor's output pin state
-
-      if (takeLowTime)
-      {
-        lowIn = millis();    // save the time of the transition from high to LOW
-        takeLowTime = false; // make sure this is only done at the start of a LOW phase
-      }
-      if (!lockLow && millis() - lowIn > motionPause)
-      {
-        lockLow = true;
-        Serial.print("Motion ended at "); // output
-        Serial.print((millis() - motionPause) / 1000);
-        Serial.println(" sec");
-        delay(50);
-      }
-    }
+    delay(300);
   }
-}
 
-void lightIntensity()
-{
-  for (;;)
-  {
-    float lux = lightMeter.readLightLevel();
-    Serial.print("Light: ");
-    Serial.print(lux);
-    Serial.println(" lx");
-    delay(1000);
-  }
+  // Serial.print("Connected with IP: ");
+  // Serial.println(WiFi.localIP());
 }

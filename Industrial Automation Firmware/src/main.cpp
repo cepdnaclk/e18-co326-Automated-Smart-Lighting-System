@@ -1,11 +1,10 @@
 #include <Arduino.h>
-#include <Wire.h>
-#include <BH1750.h>
 #include <WiFi.h>
 #include <FirebaseESP32.h>
 #include <NTPClient.h>
 #include <WiFiUdp.h>
-#include <ctime>
+#include <Wire.h>
+#include <BH1750.h>
 
 #define WIFI_SSID "Redmi Note 7"
 #define WIFI_PASSWORD "Anush123ga"
@@ -16,42 +15,20 @@
 TaskHandle_t Task1;
 TaskHandle_t Task2;
 
-// Define NTP Client to get time
-WiFiUDP ntpUDP;
-NTPClient timeClient(ntpUDP, "pool.ntp.org", 19800);
-
 // Initiate BH1750 sensor
 BH1750 lightMeter;
 
 int calibrationTime = 15;
-boolean lockLow = true;
-boolean takeLowTime;
-String dateString = "";
-String timeString = "";
-
-// Variables to store values that need to send to MQTT
-String UoP_CO_326_E18_Gr18_PIR_timeStamp = "";
-boolean UoP_CO_326_E18_Gr18_PIR_data = false;           // true: movement detected, false: no movement
-
-String UoP_CO_326_E18_Gr18_BH1750_timeStamp = "";
-float UoP_CO_326_E18_Gr18_BH1750_data;
-
-
-// the time when the sensor outputs a low impulse
-long unsigned int lowIn;
-// the amount of milliseconds the sensor has to be low
-// before we assume all motion has stopped
-long unsigned int motionPause = 5000;
 
 int pirPin = 34; // the digital pin 34 connected to the PIR sensor's output
 int ledPin = 13;
 const int led1 = 33;
 
 // Function signatures
-void pirSensor();
-void lightIntensity();
 void connectWiFi();
-String getDateTime();
+extern void pirSensor(int, int);
+extern void lightIntensity(BH1750);
+extern String getDateTime();
 
 void Task1code(void *pvParameters);
 void Task2code(void *pvParameters);
@@ -114,7 +91,7 @@ void Task1code(void *pvParameters)
   Serial.println(xPortGetCoreID());
 
   // Measuring light intensity from BH1750
-  lightIntensity();
+  lightIntensity(lightMeter);
 }
 
 // Task2code: PIR sensor
@@ -124,7 +101,7 @@ void Task2code(void *pvParameters)
   Serial.println(xPortGetCoreID());
 
   // Calling pir sensor to check occupancy
-  pirSensor();
+  pirSensor(pirPin, ledPin);
 }
 
 void loop()
@@ -142,94 +119,4 @@ void connectWiFi()
 
   // Serial.print("Connected with IP: ");
   // Serial.println(WiFi.localIP());
-}
-
-// Function for get PIR sensor data to check the occupancy
-void pirSensor()
-{
-  for (;;)
-  {
-    if (digitalRead(pirPin) == HIGH)
-    {
-      digitalWrite(ledPin, HIGH); // the LED visualizes the sensor's output pin state
-      if (lockLow)
-      {
-        UoP_CO_326_E18_Gr18_PIR_data = true;
-        UoP_CO_326_E18_Gr18_PIR_timeStamp = getDateTime();
-        lockLow = false;
-        Serial.println("---");
-        Serial.print("Motion detected at ");
-        Serial.println(UoP_CO_326_E18_Gr18_PIR_timeStamp);
-        delay(50);
-      }
-      takeLowTime = true;
-    }
-
-    if (digitalRead(pirPin) == LOW)
-    {
-      digitalWrite(ledPin, LOW); // the LED visualizes the sensor's output pin state
-
-      if (takeLowTime)
-      {
-        lowIn = millis();    // save the time of the transition from high to LOW
-        takeLowTime = false; // make sure this is only done at the start of a LOW phase
-      }
-      if (!lockLow && millis() - lowIn > motionPause)
-      {
-        lockLow = true;
-        UoP_CO_326_E18_Gr18_PIR_data = false;
-        UoP_CO_326_E18_Gr18_PIR_timeStamp = getDateTime();
-        Serial.print("Motion ended at "); // output
-        Serial.println(UoP_CO_326_E18_Gr18_PIR_timeStamp);
-        delay(50);
-      }
-    }
-  }
-}
-
-void lightIntensity()
-{
-  for (;;)
-  {
-    float lux = lightMeter.readLightLevel();
-    // Set new flux
-    UoP_CO_326_E18_Gr18_BH1750_data = lux;
-    // Set new timestamp
-    UoP_CO_326_E18_Gr18_BH1750_timeStamp = getDateTime();
-
-    Serial.print("Light: ");
-    Serial.print(lux);
-    Serial.print(" lx ");
-    Serial.println(UoP_CO_326_E18_Gr18_BH1750_timeStamp);
-    delay(2000);
-  }
-}
-
-String getDateTime()
-{
-  timeClient.update();
-  time_t epochTime = timeClient.getEpochTime();
-  struct tm *ptm = gmtime((time_t *)&epochTime);
-  int monthDay = ptm->tm_mday;
-  int currentMonth = ptm->tm_mon + 1;
-  int currentYear = ptm->tm_year + 1900;
-
-  unsigned int millisecond = epochTime % 1000;
-
-  String dash = "-";
-  dateString = String(monthDay);
-  dateString.concat(dash);
-  dateString.concat(currentMonth);
-  dateString.concat(dash);
-  dateString.concat(currentYear);
-
-  timeString = timeClient.getFormattedTime();
-
-  String space = " ";
-  dateString.concat(space);
-  dateString.concat(timeString);
-  dateString.concat(":");
-  dateString.concat(millisecond);
-
-  return dateString;
 }

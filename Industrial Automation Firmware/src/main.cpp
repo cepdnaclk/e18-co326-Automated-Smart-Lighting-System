@@ -1,17 +1,32 @@
 #include <Arduino.h>
 #include <Wire.h>
 #include <BH1750.h>
+#include <WiFi.h>
+#include <FirebaseESP32.h>
+#include <NTPClient.h>
+#include <WiFiUdp.h>
+
+#define WIFI_SSID "Redmi Note 7"
+#define WIFI_PASSWORD "Anush123ga"
+// #define WIFI_SSID "Eng-Student"
+// #define WIFI_PASSWORD "3nG5tuDt"
 
 // Create 2 tasks for each processor
 TaskHandle_t Task1;
 TaskHandle_t Task2;
 
+// Define NTP Client to get time
+WiFiUDP ntpUDP;
+NTPClient timeClient(ntpUDP, "pool.ntp.org");
+
 // Initiate BH1750 sensor
 BH1750 lightMeter;
 
-int calibrationTime = 30;
+int calibrationTime = 15;
 boolean lockLow = true;
 boolean takeLowTime;
+String dateString = "";
+String timeString = "";
 
 // the time when the sensor outputs a low impulse
 long unsigned int lowIn;
@@ -26,6 +41,7 @@ const int led1 = 33;
 // Function signatures
 void pirSensor();
 void lightIntensity();
+void connectWiFi();
 
 void Task1code(void *pvParameters);
 void Task2code(void *pvParameters);
@@ -84,8 +100,8 @@ void Task1code(void *pvParameters)
 {
   Serial.print("Task1 running on core ");
   Serial.println(xPortGetCoreID());
-  
-  // Measuring light intensity from BH1750 
+
+  // Measuring light intensity from BH1750
   lightIntensity();
 }
 
@@ -101,6 +117,19 @@ void Task2code(void *pvParameters)
 
 void loop()
 {
+}
+
+void connectWiFi()
+{
+
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  while (WiFi.status() != WL_CONNECTED)
+  {
+    delay(300);
+  }
+
+  Serial.print("Connected with IP: ");
+  Serial.println(WiFi.localIP());
 }
 
 // Function for get PIR sensor data to check the occupancy
@@ -152,6 +181,35 @@ void lightIntensity()
     Serial.print("Light: ");
     Serial.print(lux);
     Serial.println(" lx");
+    unsigned long currentMillis = millis(); // Get the current timestamp
+    Serial.print("Timestamp: ");
+    Serial.println(currentMillis);
     delay(1000);
   }
+}
+
+String getDateTime()
+{
+  connectWiFi();
+  timeClient.update();
+  time_t epochTime = timeClient.getEpochTime();
+  struct tm *ptm = gmtime((time_t *)&epochTime);
+  int monthDay = ptm->tm_mday;
+  int currentMonth = ptm->tm_mon + 1;
+  int currentYear = ptm->tm_year + 1900;
+
+  String dash = "-";
+  dateString = String(monthDay);
+  dateString.concat(dash);
+  dateString.concat(currentMonth);
+  dateString.concat(dash);
+  dateString.concat(currentYear);
+
+  timeString = timeClient.getFormattedTime();
+
+  String space = " ";
+  dateString.concat(space);
+  dateString.concat(timeString);
+
+  return dateString;
 }

@@ -22,10 +22,10 @@ TaskHandle_t Task2;
 BH1750 lightMeter;
 
 // Variables to store values that need to send to MQTT
-String UoP_CO_326_E18_Gr18_BH1750_timeStamp = "";
-float UoP_CO_326_E18_Gr18_BH1750_data;
-String UoP_CO_326_E18_Gr18_PIR_timeStamp = "";
-boolean UoP_CO_326_E18_Gr18_PIR_data = false; // true: movement detected, false: no movement
+String intensityTimeStamp = "";
+float intensityValue;
+String pirTimeStamp = "";
+boolean pirValue = false; // true: movement detected, false: no movement
 String dateString = "";
 String timeString = "";
 
@@ -37,6 +37,8 @@ long unsigned int motionPause = 5000;
 boolean lockLow = true;
 boolean takeLowTime;
 int calibrationTime = 15;
+char lightDataStr[200];
+char PIRDataStr[100];
 
 int pirPin = 34; // the digital pin 34 connected to the PIR sensor's output
 int ledPin = 13;
@@ -44,8 +46,9 @@ int ledPin = 13;
 // MQTT broker details
 const char *mqttServer = "test.mosquitto.org";
 const int mqttPort = 1883;
-// const char *mqttTopic = "UoP/CO/326/E18/Gr18/BH1750";
-const char *mqttTopic = "anushanga";
+const char *mqttTopicIntensity = "UoP/CO/326/E18/18/BH1750";
+const char *mqttTopicOccupancy = "UoP/CO/326/E18/18/PIR";
+// const char *mqttTopicIntensity = "anushanga";
 
 // WiFi and MQTT client instances
 WiFiClient wifiClient;
@@ -148,12 +151,21 @@ void pirSensor()
       digitalWrite(ledPin, HIGH); // the LED visualizes the sensor's output pin state
       if (lockLow)
       {
-        UoP_CO_326_E18_Gr18_PIR_data = true;
-        UoP_CO_326_E18_Gr18_PIR_timeStamp = getDateTime();
+        pirValue = true;
+        pirTimeStamp = getDateTime();
         lockLow = false;
-        Serial.println("---");
-        Serial.print("Motion detected at ");
-        Serial.println(UoP_CO_326_E18_Gr18_PIR_timeStamp);
+
+        // Convert sensor value and timestamp to a string
+        snprintf(PIRDataStr, 100, "{\"DateTime\": \"%s\", \"Occupancy\": %s}", pirTimeStamp.c_str(), pirValue ? "true" : "false");
+
+        if (!mqttClient.connected())
+        {
+          reconnect();
+        }
+        // Publish sensor data to MQTT topic
+        mqttClient.publish(mqttTopicIntensity, PIRDataStr);
+
+        Serial.println(PIRDataStr);
         delay(50);
       }
       takeLowTime = true;
@@ -171,10 +183,19 @@ void pirSensor()
       if (!lockLow && millis() - lowIn > motionPause)
       {
         lockLow = true;
-        UoP_CO_326_E18_Gr18_PIR_data = false;
-        UoP_CO_326_E18_Gr18_PIR_timeStamp = getDateTime();
-        Serial.print("Motion ended at "); // output
-        Serial.println(UoP_CO_326_E18_Gr18_PIR_timeStamp);
+        pirValue = false;
+        pirTimeStamp = getDateTime();
+
+        // Convert sensor value and timestamp to a string
+        snprintf(PIRDataStr, 100, "{\"DateTime\": \"%s\", \"Occupancy\": %s}", pirTimeStamp.c_str(), pirValue ? "true" : "false");
+        if (!mqttClient.connected())
+        {
+          reconnect();
+        }
+        // Publish sensor data to MQTT topic
+        mqttClient.publish(mqttTopicIntensity, PIRDataStr);
+
+        Serial.println(PIRDataStr);
         delay(50);
       }
     }
@@ -185,20 +206,15 @@ void lightIntensity()
 {
   for (;;)
   {
-    float lux = lightMeter.readLightLevel();
     // Set new flux
-    UoP_CO_326_E18_Gr18_BH1750_data = lux;
+    float intensityValue = lightMeter.readLightLevel();
     // Set new timestamp
-    UoP_CO_326_E18_Gr18_BH1750_timeStamp = getDateTime();
+    intensityTimeStamp = getDateTime();
 
-    Serial.print("Light: ");
-    Serial.print(lux);
-    Serial.print(" lx ");
-    Serial.println(UoP_CO_326_E18_Gr18_BH1750_timeStamp);
+    // Convert sensor value and timestamp to a string
+    snprintf(lightDataStr, 200, "{\"DateTime\": \"%s\", \"Intensity\": %.2f}", intensityTimeStamp.c_str(), intensityValue);
 
-    // Convert sensor value to a string
-    char sensorData[10];
-    sprintf(sensorData, "%d", lux);
+    Serial.println(lightDataStr);
 
     // Check if connected to MQTT broker
     if (!mqttClient.connected())
@@ -206,8 +222,8 @@ void lightIntensity()
       reconnect();
     }
     // Publish sensor data to MQTT topic
-    mqttClient.publish(mqttTopic, sensorData);
-    delay(5000);
+    mqttClient.publish(mqttTopicIntensity, lightDataStr);
+    delay(2000);
   }
 }
 

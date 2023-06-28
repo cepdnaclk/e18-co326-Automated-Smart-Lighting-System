@@ -5,6 +5,7 @@
 #include <FirebaseESP32.h>
 #include <NTPClient.h>
 #include <WiFiUdp.h>
+#include <ctime>
 
 #define WIFI_SSID "Redmi Note 7"
 #define WIFI_PASSWORD "Anush123ga"
@@ -17,7 +18,7 @@ TaskHandle_t Task2;
 
 // Define NTP Client to get time
 WiFiUDP ntpUDP;
-NTPClient timeClient(ntpUDP, "pool.ntp.org");
+NTPClient timeClient(ntpUDP, "pool.ntp.org", 19800);
 
 // Initiate BH1750 sensor
 BH1750 lightMeter;
@@ -213,6 +214,8 @@ String getDateTime()
   int currentMonth = ptm->tm_mon + 1;
   int currentYear = ptm->tm_year + 1900;
 
+  unsigned int millisecond = epochTime % 1000;
+
   String dash = "-";
   dateString = String(monthDay);
   dateString.concat(dash);
@@ -225,6 +228,8 @@ String getDateTime()
   String space = " ";
   dateString.concat(space);
   dateString.concat(timeString);
+  dateString.concat(":");
+  dateString.concat(millisecond);
 
   return dateString;
 }

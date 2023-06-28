@@ -1,8 +1,13 @@
 #include <Arduino.h>
+#include <Wire.h>
+#include <BH1750.h>
 
 // Create 2 tasks for each processor
 TaskHandle_t Task1;
 TaskHandle_t Task2;
+
+// Initiate BH1750 sensor
+BH1750 lightMeter;
 
 int calibrationTime = 30;
 boolean lockLow = true;
@@ -18,8 +23,9 @@ int pirPin = 34; // the digital pin 34 connected to the PIR sensor's output
 int ledPin = 13;
 const int led1 = 33;
 
-// import external functions
+// Function signatures
 void pirSensor();
+void lightIntensity();
 
 void Task1code(void *pvParameters);
 void Task2code(void *pvParameters);
@@ -43,6 +49,12 @@ void setup()
   Serial.println("SENSOR ACTIVE");
   delay(50);
   // End of calibrating sensor
+
+  // BH1750 Sensor
+  // Initialize the I2C bus (BH1750 library doesn't do this automatically)
+  Wire.begin();
+  lightMeter.begin();
+  Serial.println(F("BH1750 Test begin"));
 
   // create a task that will be executed in the Task1code() function, with priority 1 and executed on core 0
   xTaskCreatePinnedToCore(
@@ -72,19 +84,18 @@ void Task1code(void *pvParameters)
 {
   Serial.print("Task1 running on core ");
   Serial.println(xPortGetCoreID());
-
-  for (;;)
-  {
-    digitalWrite(led1, HIGH);
-    delay(1000);
-    digitalWrite(led1, LOW);
-    delay(1000);
-  }
+  
+  // Measuring light intensity from BH1750 
+  lightIntensity();
 }
 
 // Task2code: PIR sensor
 void Task2code(void *pvParameters)
 {
+  Serial.print("Task2 running on core ");
+  Serial.println(xPortGetCoreID());
+
+  // Calling pir sensor to check occupancy
   pirSensor();
 }
 
@@ -92,6 +103,7 @@ void loop()
 {
 }
 
+// Function for get PIR sensor data to check the occupancy
 void pirSensor()
 {
   for (;;)
@@ -129,5 +141,17 @@ void pirSensor()
         delay(50);
       }
     }
+  }
+}
+
+void lightIntensity()
+{
+  for (;;)
+  {
+    float lux = lightMeter.readLightLevel();
+    Serial.print("Light: ");
+    Serial.print(lux);
+    Serial.println(" lx");
+    delay(1000);
   }
 }

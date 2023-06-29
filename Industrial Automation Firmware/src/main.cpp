@@ -32,6 +32,7 @@ String dateString = "";
 String timeString = "";
 bool occupancyValue = true;
 bool lastLedState = true;
+bool securityMode = false;
 
 // the time when the sensor outputs a low impulse
 long unsigned int lowIn;
@@ -52,6 +53,9 @@ int bulbPin1 = 16;
 int bulbPin2 = 17;
 int bulbPin3 = 18;
 int bulbPin4 = 19;
+// Red bulb pins
+int redLedPin1 = 4;
+int redLedPin2 = 2;
 
 // LED brightness range
 const int minBrightness = 0;   // Minimum LED brightness (0-255)
@@ -63,6 +67,7 @@ const int mqttPort = 1883;
 const char *mqttTopicIntensity = "UoP/CO/326/E18/18/BH1750";
 const char *mqttTopicOccupancy = "UoP/CO/326/E18/18/PIR";
 const char *mqttTopicLightControl = "UoP/CO/326/E18/18/LED";
+const char *mqttTopicSecurityMode = "UoP/CO/326/E18/18/Security";
 // const char *mqttTopicIntensity = "anushanga";
 
 // WiFi and MQTT client instances
@@ -93,6 +98,8 @@ void setup()
   pinMode(bulbPin2, OUTPUT);
   pinMode(bulbPin3, OUTPUT);
   pinMode(bulbPin4, OUTPUT);
+  pinMode(redLedPin1, OUTPUT);
+  pinMode(redLedPin2, OUTPUT);
   digitalWrite(pirPin, LOW);
 
   // give the sensor some time to calibrate
@@ -389,6 +396,9 @@ void callback(char *topic, byte *payload, unsigned int length)
       setLEDState(false);
     }
   }
+  else if (String(topic) == mqttTopicSecurityMode)
+  {
+  }
 }
 
 void handleBH1750Message(String message)
@@ -409,7 +419,7 @@ void handleBH1750Message(String message)
 
   int brightness = 0;
 
-  if (lastLedState)
+  if (lastLedState && !securityMode)
   {
     if (intensityValue == 0)
     {
@@ -479,18 +489,46 @@ void handlePIRMessage(String message)
   // Extract occupancy value from JSON
   occupancyValue = doc["Occupancy"];
 
-  Serial.println(occupancyValue);
-
   // Check if occupancy is true and light intensity is below threshold
   if (occupancyValue && lightMeter.readLightLevel() < 500)
   {
     // digitalWrite(bulbPin, HIGH); // Turn on LED
     Serial.println("Turn on LED");
   }
-  else
+  else if (!occupancyValue)
   {
     // digitalWrite(bulbPin, LOW); // Turn off LED
     Serial.println("Turn off LED");
+    digitalWrite(bulbPin1, LOW);
+    digitalWrite(bulbPin2, LOW);
+    digitalWrite(bulbPin3, LOW);
+    digitalWrite(bulbPin4, LOW);
+  }
+}
+
+void handleSecurityMode(String message)
+{
+  if (message == "true")
+  {
+    securityMode = true;
+    Serial.println("Security mode on.");
+    digitalWrite(bulbPin1, LOW);
+    digitalWrite(bulbPin2, LOW);
+    digitalWrite(bulbPin3, LOW);
+    digitalWrite(bulbPin4, LOW);
+    if (occupancyValue)
+    {
+      digitalWrite(redLedPin1, HIGH);
+      digitalWrite(redLedPin2, HIGH);
+    }
+  }
+  else if (message == "false")
+  {
+    securityMode = false;
+  }
+  else
+  {
+    securityMode = false;
   }
 }
 

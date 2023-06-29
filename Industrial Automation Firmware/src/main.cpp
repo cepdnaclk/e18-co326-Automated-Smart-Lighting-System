@@ -423,7 +423,7 @@ void handleBH1750Message(String message)
 
   int brightness = 0;
 
-  if (lastLedState && !securityMode)
+  if (lastLedState && !securityMode && occupancyValue)
   {
     if (intensityValue == 0)
     {
@@ -534,12 +534,12 @@ void handlePIRMessage(String message)
   occupancyValue = doc["Occupancy"];
 
   // Check if occupancy is true and light intensity is below threshold
-  if (occupancyValue && lightMeter.readLightLevel() < 500)
+  if (occupancyValue)
   {
     // digitalWrite(bulbPin, HIGH); // Turn on LED
     Serial.println("Turn on LED");
   }
-  else if (!occupancyValue)
+  else
   {
     // digitalWrite(bulbPin, LOW); // Turn off LED
     Serial.println("Turn off LED");
@@ -573,10 +573,7 @@ void handleSecurityMode(String message)
   // Extract light intensity value from JSON
   bool securityModeValue = doc["Security"];
 
-  Serial.print("Mode: ");
-  Serial.println(securityModeValue);
-
-  if (securityModeValue == true)
+  if (securityModeValue)
   {
     securityMode = true;
     Serial.println("Security mode on.");

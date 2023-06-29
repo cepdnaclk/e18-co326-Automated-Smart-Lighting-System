@@ -7,6 +7,7 @@
 #include <BH1750.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
+#include <math.h>
 
 #define WIFI_SSID "Redmi Note 7"
 #define WIFI_PASSWORD "Anush123ga"
@@ -30,6 +31,8 @@ boolean pirValue = false; // true: movement detected, false: no movement
 String dateString = "";
 String timeString = "";
 bool occupancyValue = true;
+bool lastLedState = true;
+bool securityMode = false;
 
 // the time when the sensor outputs a low impulse
 long unsigned int lowIn;
@@ -44,7 +47,15 @@ char PIRDataStr[100];
 
 int pirPin = 34; // the digital pin 34 connected to the PIR sensor's output
 int ledPin = 13;
-int bulbPin = 27;
+
+// Bulb pins
+int bulbPin1 = 16;
+int bulbPin2 = 17;
+int bulbPin3 = 18;
+int bulbPin4 = 19;
+// Red bulb pins
+int redLedPin1 = 4;
+int redLedPin2 = 2;
 
 // LED brightness range
 const int minBrightness = 0;   // Minimum LED brightness (0-255)
@@ -55,6 +66,8 @@ const char *mqttServer = "test.mosquitto.org";
 const int mqttPort = 1883;
 const char *mqttTopicIntensity = "UoP/CO/326/E18/18/BH1750";
 const char *mqttTopicOccupancy = "UoP/CO/326/E18/18/PIR";
+const char *mqttTopicLightControl = "UoP/CO/326/E18/18/LED";
+const char *mqttTopicSecurityMode = "UoP/CO/326/E18/18/Security";
 // const char *mqttTopicIntensity = "anushanga";
 
 // WiFi and MQTT client instances
@@ -66,10 +79,13 @@ void connectWiFi();
 void reconnect();
 void pirSensor();
 void lightIntensity();
-String getDateTime();
+String getDateTimePIR();
+String getDateTimeBH1750();
 void callback(char *, byte *, unsigned int);
 void handlePIRMessage(String);
 void handleBH1750Message(String);
+void setLEDState(bool);
+void handleSecurityMode(String);
 
 void Task1code(void *pvParameters);
 void Task2code(void *pvParameters);
@@ -79,7 +95,12 @@ void setup()
   Serial.begin(9600);
   pinMode(pirPin, INPUT);
   pinMode(ledPin, OUTPUT);
-  pinMode(bulbPin, OUTPUT);
+  pinMode(bulbPin1, OUTPUT);
+  pinMode(bulbPin2, OUTPUT);
+  pinMode(bulbPin3, OUTPUT);
+  pinMode(bulbPin4, OUTPUT);
+  pinMode(redLedPin1, OUTPUT);
+  pinMode(redLedPin2, OUTPUT);
   digitalWrite(pirPin, LOW);
 
   // give the sensor some time to calibrate
@@ -171,7 +192,7 @@ void pirSensor()
       if (lockLow)
       {
         pirValue = true;
-        pirTimeStamp = getDateTime();
+        pirTimeStamp = getDateTimePIR();
         lockLow = false;
 
         // Convert sensor value and timestamp to a string
@@ -182,7 +203,7 @@ void pirSensor()
           reconnect();
         }
         // Publish sensor data to MQTT topic
-        mqttClient.publish(mqttTopicIntensity, PIRDataStr);
+        mqttClient.publish(mqttTopicOccupancy, PIRDataStr);
 
         // Serial.println(PIRDataStr);
         delay(50);
@@ -203,7 +224,7 @@ void pirSensor()
       {
         lockLow = true;
         pirValue = false;
-        pirTimeStamp = getDateTime();
+        pirTimeStamp = getDateTimePIR();
 
         // Convert sensor value and timestamp to a string
         snprintf(PIRDataStr, 100, "{\"DateTime\": \"%s\", \"Occupancy\": %s}", pirTimeStamp.c_str(), pirValue ? "true" : "false");
@@ -212,7 +233,7 @@ void pirSensor()
           reconnect();
         }
         // Publish sensor data to MQTT topic
-        mqttClient.publish(mqttTopicIntensity, PIRDataStr);
+        mqttClient.publish(mqttTopicOccupancy, PIRDataStr);
 
         // Serial.println(PIRDataStr);
         delay(50);
@@ -227,11 +248,16 @@ void lightIntensity()
   {
     // Set new flux
     float intensityValue = lightMeter.readLightLevel();
+    if (intensityValue > 1000.0)
+    {
+      intensityValue = 1000.0;
+    }
+    int roundedIntensity = (int)(intensityValue + 0.5);
     // Set new timestamp
-    intensityTimeStamp = getDateTime();
+    intensityTimeStamp = getDateTimeBH1750();
 
     // Convert sensor value and timestamp to a string
-    snprintf(lightDataStr, 200, "{\"DateTime\": \"%s\", \"Intensity\": %.2f}", intensityTimeStamp.c_str(), intensityValue);
+    snprintf(lightDataStr, 200, "{\"DateTime\": \"%s\", \"Intensity\": %d}", intensityTimeStamp.c_str(), roundedIntensity);
 
     // Serial.println(lightDataStr);
 
@@ -270,6 +296,7 @@ void reconnect()
       Serial.println("Connected to MQTT broker");
       mqttClient.subscribe(mqttTopicIntensity);
       mqttClient.subscribe(mqttTopicOccupancy);
+      mqttClient.subscribe(mqttTopicSecurityMode);
     }
     else
     {
@@ -283,7 +310,7 @@ void reconnect()
   }
 }
 
-String getDateTime()
+String getDateTimePIR()
 {
   timeClient.update();
   time_t epochTime = timeClient.getEpochTime();
@@ -295,11 +322,40 @@ String getDateTime()
   unsigned int millisecond = epochTime % 1000;
 
   String dash = "-";
-  dateString = String(monthDay);
+  dateString = String(currentYear);
   dateString.concat(dash);
   dateString.concat(currentMonth);
   dateString.concat(dash);
-  dateString.concat(currentYear);
+  dateString.concat(monthDay);
+
+  timeString = timeClient.getFormattedTime();
+
+  String space = " ";
+  dateString.concat(space);
+  dateString.concat(timeString);
+  dateString.concat(":");
+  dateString.concat(millisecond);
+
+  return dateString;
+}
+
+String getDateTimeBH1750()
+{
+  timeClient.update();
+  time_t epochTime = timeClient.getEpochTime();
+  struct tm *ptm = gmtime((time_t *)&epochTime);
+  int monthDay = ptm->tm_mday;
+  int currentMonth = ptm->tm_mon + 1;
+  int currentYear = ptm->tm_year + 1900;
+
+  unsigned int millisecond = epochTime % 1000;
+
+  String dash = "-";
+  dateString = String(currentYear);
+  dateString.concat(dash);
+  dateString.concat(currentMonth);
+  dateString.concat(dash);
+  dateString.concat(monthDay);
 
   timeString = timeClient.getFormattedTime();
 
@@ -331,6 +387,22 @@ void callback(char *topic, byte *payload, unsigned int length)
     // PIR topic
     handlePIRMessage(message);
   }
+  else if (String(topic) == mqttTopicLightControl)
+  {
+    if (message == "on")
+    {
+      setLEDState(true);
+    }
+    else if (message == "off")
+    {
+      setLEDState(false);
+    }
+  }
+  else if (String(topic) == mqttTopicSecurityMode)
+  {
+    Serial.println("Security changed");
+    handleSecurityMode(message);
+  }
 }
 
 void handleBH1750Message(String message)
@@ -347,17 +419,72 @@ void handleBH1750Message(String message)
   }
 
   // Extract light intensity value from JSON
-  float intensityValue = doc["Intensity"];
+  int intensityValue = doc["Intensity"];
 
-  Serial.println(intensityValue);
+  int brightness = 0;
 
-  // Adjust LED brightness based on intensity value
-  int brightness = map(intensityValue, 0, 3000, maxBrightness, minBrightness);
-  brightness = constrain(brightness, minBrightness, maxBrightness);
-  analogWrite(ledPin, brightness);
-
-  Serial.print("LED value: ");
-  Serial.println(brightness);
+  if (lastLedState && !securityMode)
+  {
+    if (intensityValue == 0)
+    {
+      // brightness = 0;
+      digitalWrite(bulbPin1, HIGH);
+      digitalWrite(bulbPin2, HIGH);
+      digitalWrite(bulbPin3, HIGH);
+      digitalWrite(bulbPin4, HIGH);
+      digitalWrite(redLedPin1, LOW);
+      digitalWrite(redLedPin2, LOW);
+    }
+    else if (intensityValue > 0 && intensityValue < 250)
+    {
+      // brightness = 1;
+      digitalWrite(bulbPin1, HIGH);
+      digitalWrite(bulbPin2, HIGH);
+      digitalWrite(bulbPin3, HIGH);
+      digitalWrite(bulbPin4, LOW);
+      digitalWrite(redLedPin1, LOW);
+      digitalWrite(redLedPin2, LOW);
+    }
+    else if (intensityValue > 249 && intensityValue < 500)
+    {
+      // brightness = 2;
+      digitalWrite(bulbPin1, HIGH);
+      digitalWrite(bulbPin2, HIGH);
+      digitalWrite(bulbPin3, LOW);
+      digitalWrite(bulbPin4, LOW);
+      digitalWrite(redLedPin1, LOW);
+      digitalWrite(redLedPin2, LOW);
+    }
+    else if (intensityValue > 499 && intensityValue < 750)
+    {
+      // brightness = 3;
+      digitalWrite(bulbPin1, HIGH);
+      digitalWrite(bulbPin2, LOW);
+      digitalWrite(bulbPin3, LOW);
+      digitalWrite(bulbPin4, LOW);
+      digitalWrite(redLedPin1, LOW);
+      digitalWrite(redLedPin2, LOW);
+    }
+    else if (intensityValue > 749)
+    {
+      // brightness = 4;
+      digitalWrite(bulbPin1, LOW);
+      digitalWrite(bulbPin2, LOW);
+      digitalWrite(bulbPin3, LOW);
+      digitalWrite(bulbPin4, LOW);
+      digitalWrite(redLedPin1, LOW);
+      digitalWrite(redLedPin2, LOW);
+    }
+  }
+  else
+  {
+    // brightness = 0;
+    digitalWrite(bulbPin1, LOW);
+    digitalWrite(bulbPin2, LOW);
+    digitalWrite(bulbPin3, LOW);
+    digitalWrite(bulbPin4, LOW);
+    Serial.println("LED forced off.");
+  }
 }
 
 void handlePIRMessage(String message)
@@ -379,12 +506,80 @@ void handlePIRMessage(String message)
   // Check if occupancy is true and light intensity is below threshold
   if (occupancyValue && lightMeter.readLightLevel() < 500)
   {
-    digitalWrite(bulbPin, HIGH); // Turn on LED
+    // digitalWrite(bulbPin, HIGH); // Turn on LED
     Serial.println("Turn on LED");
+  }
+  else if (!occupancyValue)
+  {
+    // digitalWrite(bulbPin, LOW); // Turn off LED
+    Serial.println("Turn off LED");
+    digitalWrite(bulbPin1, LOW);
+    digitalWrite(bulbPin2, LOW);
+    digitalWrite(bulbPin3, LOW);
+    digitalWrite(bulbPin4, LOW);
+    digitalWrite(redLedPin1, LOW);
+    digitalWrite(redLedPin2, LOW);
+  }
+}
+
+void handleSecurityMode(String message)
+{
+  // Parse JSON data
+  StaticJsonDocument<200> doc;
+  DeserializationError error = deserializeJson(doc, message);
+
+  if (error)
+  {
+    Serial.print("JSON parsing error: ");
+    Serial.println(error.c_str());
+    return;
+  }
+
+  // Extract light intensity value from JSON
+  bool securityModeValue = doc["Security"];
+
+  Serial.print("Mode: ");
+  Serial.println(securityModeValue);
+
+  if (securityModeValue == true)
+  {
+    securityMode = true;
+    Serial.println("Security mode on.");
+    digitalWrite(bulbPin1, LOW);
+    digitalWrite(bulbPin2, LOW);
+    digitalWrite(bulbPin3, LOW);
+    digitalWrite(bulbPin4, LOW);
+    digitalWrite(redLedPin1, LOW);
+    digitalWrite(redLedPin2, LOW);
+    if (occupancyValue)
+    {
+      digitalWrite(redLedPin1, HIGH);
+      digitalWrite(redLedPin2, HIGH);
+    }
+  }
+  else if (securityModeValue == false)
+  {
+    securityMode = false;
+    Serial.println("Security mode off.");
   }
   else
   {
-    digitalWrite(bulbPin, LOW); // Turn off LED
-    Serial.println("Turn off LED");
+    Serial.println("Security mode off.");
+    securityMode = false;
+  }
+}
+
+// Control the light
+void setLEDState(bool state)
+{
+  if (state && !lastLedState)
+  {
+    digitalWrite(ledPin, HIGH);
+    lastLedState = true;
+  }
+  else if (!state && lastLedState)
+  {
+    digitalWrite(ledPin, LOW);
+    lastLedState = false;
   }
 }

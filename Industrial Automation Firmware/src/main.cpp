@@ -85,6 +85,7 @@ void callback(char *, byte *, unsigned int);
 void handlePIRMessage(String);
 void handleBH1750Message(String);
 void setLEDState(bool);
+void handleSecurityMode(String);
 
 void Task1code(void *pvParameters);
 void Task2code(void *pvParameters);
@@ -258,7 +259,7 @@ void lightIntensity()
     // Convert sensor value and timestamp to a string
     snprintf(lightDataStr, 200, "{\"DateTime\": \"%s\", \"Intensity\": %d}", intensityTimeStamp.c_str(), roundedIntensity);
 
-    Serial.println(lightDataStr);
+    // Serial.println(lightDataStr);
 
     // Check if connected to MQTT broker
     if (!mqttClient.connected())
@@ -295,6 +296,7 @@ void reconnect()
       Serial.println("Connected to MQTT broker");
       mqttClient.subscribe(mqttTopicIntensity);
       mqttClient.subscribe(mqttTopicOccupancy);
+      mqttClient.subscribe(mqttTopicSecurityMode);
     }
     else
     {
@@ -398,6 +400,8 @@ void callback(char *topic, byte *payload, unsigned int length)
   }
   else if (String(topic) == mqttTopicSecurityMode)
   {
+    Serial.println("Security changed");
+    handleSecurityMode(message);
   }
 }
 
@@ -428,6 +432,8 @@ void handleBH1750Message(String message)
       digitalWrite(bulbPin2, HIGH);
       digitalWrite(bulbPin3, HIGH);
       digitalWrite(bulbPin4, HIGH);
+      digitalWrite(redLedPin1, LOW);
+      digitalWrite(redLedPin2, LOW);
     }
     else if (intensityValue > 0 && intensityValue < 250)
     {
@@ -436,6 +442,8 @@ void handleBH1750Message(String message)
       digitalWrite(bulbPin2, HIGH);
       digitalWrite(bulbPin3, HIGH);
       digitalWrite(bulbPin4, LOW);
+      digitalWrite(redLedPin1, LOW);
+      digitalWrite(redLedPin2, LOW);
     }
     else if (intensityValue > 249 && intensityValue < 500)
     {
@@ -444,6 +452,8 @@ void handleBH1750Message(String message)
       digitalWrite(bulbPin2, HIGH);
       digitalWrite(bulbPin3, LOW);
       digitalWrite(bulbPin4, LOW);
+      digitalWrite(redLedPin1, LOW);
+      digitalWrite(redLedPin2, LOW);
     }
     else if (intensityValue > 499 && intensityValue < 750)
     {
@@ -452,6 +462,8 @@ void handleBH1750Message(String message)
       digitalWrite(bulbPin2, LOW);
       digitalWrite(bulbPin3, LOW);
       digitalWrite(bulbPin4, LOW);
+      digitalWrite(redLedPin1, LOW);
+      digitalWrite(redLedPin2, LOW);
     }
     else if (intensityValue > 749)
     {
@@ -460,6 +472,8 @@ void handleBH1750Message(String message)
       digitalWrite(bulbPin2, LOW);
       digitalWrite(bulbPin3, LOW);
       digitalWrite(bulbPin4, LOW);
+      digitalWrite(redLedPin1, LOW);
+      digitalWrite(redLedPin2, LOW);
     }
   }
   else
@@ -503,12 +517,31 @@ void handlePIRMessage(String message)
     digitalWrite(bulbPin2, LOW);
     digitalWrite(bulbPin3, LOW);
     digitalWrite(bulbPin4, LOW);
+    digitalWrite(redLedPin1, LOW);
+    digitalWrite(redLedPin2, LOW);
   }
 }
 
 void handleSecurityMode(String message)
 {
-  if (message == "true")
+  // Parse JSON data
+  StaticJsonDocument<200> doc;
+  DeserializationError error = deserializeJson(doc, message);
+
+  if (error)
+  {
+    Serial.print("JSON parsing error: ");
+    Serial.println(error.c_str());
+    return;
+  }
+
+  // Extract light intensity value from JSON
+  bool securityModeValue = doc["Security"];
+
+  Serial.print("Mode: ");
+  Serial.println(securityModeValue);
+
+  if (securityModeValue == true)
   {
     securityMode = true;
     Serial.println("Security mode on.");
@@ -516,18 +549,22 @@ void handleSecurityMode(String message)
     digitalWrite(bulbPin2, LOW);
     digitalWrite(bulbPin3, LOW);
     digitalWrite(bulbPin4, LOW);
+    digitalWrite(redLedPin1, LOW);
+    digitalWrite(redLedPin2, LOW);
     if (occupancyValue)
     {
       digitalWrite(redLedPin1, HIGH);
       digitalWrite(redLedPin2, HIGH);
     }
   }
-  else if (message == "false")
+  else if (securityModeValue == false)
   {
     securityMode = false;
+    Serial.println("Security mode off.");
   }
   else
   {
+    Serial.println("Security mode off.");
     securityMode = false;
   }
 }

@@ -7,7 +7,6 @@
 #include <BH1750.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
-#include <math.h>
 
 #define WIFI_SSID "Redmi Note 7"
 #define WIFI_PASSWORD "Anush123ga"
@@ -44,6 +43,7 @@ boolean takeLowTime;
 int calibrationTime = 15;
 char lightDataStr[200];
 char PIRDataStr[100];
+char levelDataStr[50];
 
 int pirPin = 34; // the digital pin 34 connected to the PIR sensor's output
 int ledPin = 13;
@@ -68,7 +68,7 @@ const char *mqttTopicIntensity = "UoP/CO/326/E18/18/BH1750";
 const char *mqttTopicOccupancy = "UoP/CO/326/E18/18/PIR";
 const char *mqttTopicLightControl = "UoP/CO/326/E18/18/LED";
 const char *mqttTopicSecurityMode = "UoP/CO/326/E18/18/Security";
-// const char *mqttTopicIntensity = "anushanga";
+const char *mqttTopicLightLevel = "UoP/CO/326/E18/18/LightLevel";
 
 // WiFi and MQTT client instances
 WiFiClient wifiClient;
@@ -427,23 +427,33 @@ void handleBH1750Message(String message)
   {
     if (intensityValue == 0)
     {
-      // brightness = 0;
+      // brightness = 4;
       digitalWrite(bulbPin1, HIGH);
       digitalWrite(bulbPin2, HIGH);
       digitalWrite(bulbPin3, HIGH);
       digitalWrite(bulbPin4, HIGH);
       digitalWrite(redLedPin1, LOW);
       digitalWrite(redLedPin2, LOW);
+
+      snprintf(lightDataStr, 50, "{\"Level\": %d}", 4);
+      if (!mqttClient.connected())
+        reconnect();
+      mqttClient.publish(mqttTopicLightLevel, lightDataStr);
     }
     else if (intensityValue > 0 && intensityValue < 250)
     {
-      // brightness = 1;
+      // brightness = 3;
       digitalWrite(bulbPin1, HIGH);
       digitalWrite(bulbPin2, HIGH);
       digitalWrite(bulbPin3, HIGH);
       digitalWrite(bulbPin4, LOW);
       digitalWrite(redLedPin1, LOW);
       digitalWrite(redLedPin2, LOW);
+
+      snprintf(levelDataStr, 50, "{\"Level\": %d}", 3);
+      if (!mqttClient.connected())
+        reconnect();
+      mqttClient.publish(mqttTopicLightLevel, levelDataStr);
     }
     else if (intensityValue > 249 && intensityValue < 500)
     {
@@ -454,26 +464,41 @@ void handleBH1750Message(String message)
       digitalWrite(bulbPin4, LOW);
       digitalWrite(redLedPin1, LOW);
       digitalWrite(redLedPin2, LOW);
+
+      snprintf(levelDataStr, 50, "{\"Level\": %d}", 2);
+      if (!mqttClient.connected())
+        reconnect();
+      mqttClient.publish(mqttTopicLightLevel, levelDataStr);
     }
     else if (intensityValue > 499 && intensityValue < 750)
     {
-      // brightness = 3;
+      // brightness = 1;
       digitalWrite(bulbPin1, HIGH);
       digitalWrite(bulbPin2, LOW);
       digitalWrite(bulbPin3, LOW);
       digitalWrite(bulbPin4, LOW);
       digitalWrite(redLedPin1, LOW);
       digitalWrite(redLedPin2, LOW);
+
+      snprintf(levelDataStr, 50, "{\"Level\": %d}", 1);
+      if (!mqttClient.connected())
+        reconnect();
+      mqttClient.publish(mqttTopicLightLevel, levelDataStr);
     }
     else if (intensityValue > 749)
     {
-      // brightness = 4;
+      // brightness = 0;
       digitalWrite(bulbPin1, LOW);
       digitalWrite(bulbPin2, LOW);
       digitalWrite(bulbPin3, LOW);
       digitalWrite(bulbPin4, LOW);
       digitalWrite(redLedPin1, LOW);
       digitalWrite(redLedPin2, LOW);
+
+      snprintf(levelDataStr, 50, "{\"Level\": %d}", 0);
+      if (!mqttClient.connected())
+        reconnect();
+      mqttClient.publish(mqttTopicLightLevel, levelDataStr);
     }
   }
   else
@@ -484,6 +509,11 @@ void handleBH1750Message(String message)
     digitalWrite(bulbPin3, LOW);
     digitalWrite(bulbPin4, LOW);
     Serial.println("LED forced off.");
+
+    snprintf(levelDataStr, 50, "{\"Level\": %d}", 0);
+    if (!mqttClient.connected())
+      reconnect();
+    mqttClient.publish(mqttTopicLightLevel, levelDataStr);
   }
 }
 
@@ -519,6 +549,11 @@ void handlePIRMessage(String message)
     digitalWrite(bulbPin4, LOW);
     digitalWrite(redLedPin1, LOW);
     digitalWrite(redLedPin2, LOW);
+
+    snprintf(levelDataStr, 50, "{\"Level\": %d}", 0);
+    if (!mqttClient.connected())
+      reconnect();
+    mqttClient.publish(mqttTopicLightLevel, levelDataStr);
   }
 }
 
@@ -551,6 +586,12 @@ void handleSecurityMode(String message)
     digitalWrite(bulbPin4, LOW);
     digitalWrite(redLedPin1, LOW);
     digitalWrite(redLedPin2, LOW);
+
+    snprintf(levelDataStr, 50, "{\"Level\": %d}", 0);
+    if (!mqttClient.connected())
+      reconnect();
+    mqttClient.publish(mqttTopicLightLevel, levelDataStr);
+
     if (occupancyValue)
     {
       digitalWrite(redLedPin1, HIGH);

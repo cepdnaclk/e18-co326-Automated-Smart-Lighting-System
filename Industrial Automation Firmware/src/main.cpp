@@ -6,6 +6,7 @@
 #include <Wire.h>
 #include <BH1750.h>
 #include <PubSubClient.h>
+#include <ArduinoJson.h>
 
 #define WIFI_SSID "Redmi Note 7"
 #define WIFI_PASSWORD "Anush123ga"
@@ -28,6 +29,7 @@ String pirTimeStamp = "";
 boolean pirValue = false; // true: movement detected, false: no movement
 String dateString = "";
 String timeString = "";
+bool occupancyValue = true;
 
 // the time when the sensor outputs a low impulse
 long unsigned int lowIn;
@@ -42,6 +44,11 @@ char PIRDataStr[100];
 
 int pirPin = 34; // the digital pin 34 connected to the PIR sensor's output
 int ledPin = 13;
+int bulbPin = 27;
+
+// LED brightness range
+const int minBrightness = 0;   // Minimum LED brightness (0-255)
+const int maxBrightness = 255; // Maximum LED brightness (0-255)
 
 // MQTT broker details
 const char *mqttServer = "test.mosquitto.org";
@@ -60,6 +67,9 @@ void reconnect();
 void pirSensor();
 void lightIntensity();
 String getDateTime();
+void callback(char *, byte *, unsigned int);
+void handlePIRMessage(String);
+void handleBH1750Message(String);
 
 void Task1code(void *pvParameters);
 void Task2code(void *pvParameters);
@@ -69,6 +79,7 @@ void setup()
   Serial.begin(9600);
   pinMode(pirPin, INPUT);
   pinMode(ledPin, OUTPUT);
+  pinMode(bulbPin, OUTPUT);
   digitalWrite(pirPin, LOW);
 
   // give the sensor some time to calibrate
@@ -93,6 +104,9 @@ void setup()
 
   lightMeter.begin();
   Serial.println(F("BH1750 Test begin"));
+
+  mqttClient.setCallback(callback);
+  reconnect();
 
   // create a task that will be executed in the Task1code() function, with priority 1 and executed on core 0
   xTaskCreatePinnedToCore(
@@ -139,6 +153,11 @@ void Task2code(void *pvParameters)
 
 void loop()
 {
+  if (!mqttClient.connected())
+  {
+    reconnect();
+  }
+  mqttClient.loop();
 }
 
 // Function for get PIR sensor data to check the occupancy
@@ -165,7 +184,7 @@ void pirSensor()
         // Publish sensor data to MQTT topic
         mqttClient.publish(mqttTopicIntensity, PIRDataStr);
 
-        Serial.println(PIRDataStr);
+        // Serial.println(PIRDataStr);
         delay(50);
       }
       takeLowTime = true;
@@ -195,7 +214,7 @@ void pirSensor()
         // Publish sensor data to MQTT topic
         mqttClient.publish(mqttTopicIntensity, PIRDataStr);
 
-        Serial.println(PIRDataStr);
+        // Serial.println(PIRDataStr);
         delay(50);
       }
     }
@@ -214,7 +233,7 @@ void lightIntensity()
     // Convert sensor value and timestamp to a string
     snprintf(lightDataStr, 200, "{\"DateTime\": \"%s\", \"Intensity\": %.2f}", intensityTimeStamp.c_str(), intensityValue);
 
-    Serial.println(lightDataStr);
+    // Serial.println(lightDataStr);
 
     // Check if connected to MQTT broker
     if (!mqttClient.connected())
@@ -249,6 +268,8 @@ void reconnect()
     if (mqttClient.connect("ArduinoClient"))
     {
       Serial.println("Connected to MQTT broker");
+      mqttClient.subscribe(mqttTopicIntensity);
+      mqttClient.subscribe(mqttTopicOccupancy);
     }
     else
     {
@@ -289,4 +310,81 @@ String getDateTime()
   dateString.concat(millisecond);
 
   return dateString;
+}
+
+void callback(char *topic, byte *payload, unsigned int length)
+{
+  // Convert payload to a string
+  String message = "";
+  for (int i = 0; i < length; i++)
+  {
+    message += (char)payload[i];
+  }
+  // Parse JSON message
+  if (String(topic) == mqttTopicIntensity)
+  {
+    // BH1750 topic
+    handleBH1750Message(message);
+  }
+  else if (String(topic) == mqttTopicOccupancy)
+  {
+    // PIR topic
+    handlePIRMessage(message);
+  }
+}
+
+void handleBH1750Message(String message)
+{
+  // Parse JSON data
+  StaticJsonDocument<200> doc;
+  DeserializationError error = deserializeJson(doc, message);
+
+  if (error)
+  {
+    Serial.print("JSON parsing error: ");
+    Serial.println(error.c_str());
+    return;
+  }
+
+  // Extract light intensity value from JSON
+  float intensityValue = doc["Intensity"];
+
+  Serial.println(intensityValue);
+
+  // Adjust LED brightness based on intensity value
+  int brightness = map(intensityValue, 0, 3000, maxBrightness, minBrightness);
+  brightness = constrain(brightness, minBrightness, maxBrightness);
+  analogWrite(ledPin, brightness);
+
+  Serial.print("LED value: ");
+  Serial.println(brightness);
+}
+
+void handlePIRMessage(String message)
+{
+  // Parse JSON data
+  StaticJsonDocument<200> doc;
+  DeserializationError error = deserializeJson(doc, message);
+
+  if (error)
+  {
+    Serial.print("JSON parsing error: ");
+    Serial.println(error.c_str());
+    return;
+  }
+
+  // Extract occupancy value from JSON
+  occupancyValue = doc["Occupancy"];
+
+  // Check if occupancy is true and light intensity is below threshold
+  if (occupancyValue && lightMeter.readLightLevel() < 500)
+  {
+    digitalWrite(bulbPin, HIGH); // Turn on LED
+    Serial.println("Turn on LED");
+  }
+  else
+  {
+    digitalWrite(bulbPin, LOW); // Turn off LED
+    Serial.println("Turn off LED");
+  }
 }
